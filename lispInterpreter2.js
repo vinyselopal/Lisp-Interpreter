@@ -31,7 +31,19 @@ const globalEnv = {
   '/': (args) => {
     if (args.length !== 2) return null
     return args.reduce((acc, a) => acc / a, args[0])
+  },
+  '=': (args) => {
+    if (args.length !== 2) return null
+    return args[0] === args[1]
   }
+}
+const bracketParser = (input, env) => {
+  console.log('in bracket')
+  input = input.trim().slice(1)
+  const parsed = expressionParser(input, env)
+  const rest = parsed[1].trim()
+  if (rest[0] !== ')') return null
+  return [parsed[0], rest.slice(1)]
 }
 const numberParser = input => {
   console.log('in num')
@@ -56,21 +68,19 @@ const defineParser = (input, env) => {
 }
 const lambdaParser = (input, env) => {
   console.log('in lambda')
-  input = input.trim().slice(1).trim()
 
+  //  (x) (+ x 2))
+  input = input.trim().slice(1).trim()
   let parameters = input.match(/[^)]/)[0]
   input = input.slice(parameters.length).trim().slice(1)
   parameters = parameters.trim().split(/\s+/)
+  console.log('params', parameters, input)
   const func = function (localArgs) {
-    console.log(env)
-    console.log('hi')
     const localEnv = Object.create(env)
-    console.log(Object.getPrototypeOf(localEnv))
-    console.log(localEnv)
     parameters.forEach((param, i) => {
       localEnv[param] = localArgs[i]
     })
-    console.log(localEnv)
+    console.log('local', localEnv)
     const parsed = expressionParser(input, localEnv)
     input = parsed[1]
     return parsed
@@ -78,9 +88,11 @@ const lambdaParser = (input, env) => {
   return [func, input]
 }
 const ifParser = (input, env) => {
-  console.log('in if')
+  console.log('in if', input)
   const parsed1 = expressionParser(input, env)
   const test = parsed1[0]
+  parsed1[1] = parsed1[1].trim()
+  if (parsed1[1][0] === ')') parsed1[1] = parsed1[1].slice(1)
   const parsed2 = expressionParser(parsed1[1], env)
   const conseq = parsed2[0]
   const parsed3 = expressionParser(parsed2[1], env)
@@ -92,22 +104,20 @@ const argumentParser = (input, env) => {
   console.log('in arg')
   const args = []
   let current = expressionParser(input, env)
-  console.log(current)
   args.push(current[0])
   while (current[1].trim() !== ')') {
     const parsed = expressionParser(current[1].trim(), env)
     current = parsed[1]
     args.push(parsed[0])
   }
-  console.log(args)
   return [args, current]
 }
 const atomicExpParser = (input, env) => {
-  console.log('in atom')
+  console.log('in atom', env)
   const operator = input.match(/[^\s]+/)[0]
   const procedure = env[operator]
   input = input.slice(operator.length).trim()
-  const parsed = argumentParser(input)
+  const parsed = argumentParser(input, env)
   const args = parsed[0]
   const rest = parsed[1]
   return [procedure(args), rest]
@@ -122,16 +132,7 @@ const expressionParser = (input, env = globalEnv) => {
   console.log(env)
   console.log(input)
   input = input.trim()
-  let bracket = 0
-  let rest = ''
-  let expValue
-  if (input[0] === '(') {
-    input = input.slice(1).trim()
-    bracket = 1
-  }
   const operator = input.match(/[^\s]+/)[0]
-  console.log('hiii')
-  console.log(env[operator])
   const opFunc = operators[operator]
   if (opFunc) {
     input = input.slice(operator.length).trim()
@@ -141,8 +142,10 @@ const expressionParser = (input, env = globalEnv) => {
     rest += parsed[1]
   }
   if (operator === "'") return input.slice(1).trim()
+  const bracketParsed = bracketParser(input)
+  if (bracketParsed !== null) return bracketParsed
   if (isFunc(env, operator)) {
-    console.log('in isFuncCond')
+    console.log('in isFuncCond', input)
     const parsed = atomicExpParser(input, env)
     if (parsed === null) return null
     expValue = parsed[0]
@@ -159,11 +162,6 @@ const expressionParser = (input, env = globalEnv) => {
     expValue = env[operator]
     rest += input.slice(operator.length)
   }
-  // if (bracket === 1) {
-  //   if (rest[0] !== ')' && (operator !== 'define' && operator !== 'lambda') /* bad logic */) {
-  //     return null
-  //   }
-  // }
   return [expValue, rest]
 }
 const lispInterpreter = (input) => {
@@ -174,10 +172,10 @@ const lispInterpreter = (input) => {
   // return answer === null ? 'Invalid exp' : answer[0]
   return answer[0]
 }
-console.log('xx')
-console.log(lispInterpreter('(define r (lambda (x) (+ x 2))'))
-console.log(lispInterpreter('(r 2)'))
+// console.log(lispInterpreter('(define r (lambda (x) (+ x 2))'))
+// console.log(lispInterpreter('(r 2)'))
 // console.log(lispInterpreter('(+ 2 (* 4 3)'))
-console.log('xx')
-
+console.log(lispInterpreter('(define evaluate (lambda (x) (if (= x 1) 1 0)))'))
+console.log(lispInterpreter('(evaluate 3)'))
 // if ' appears inside in expression somewhere
+// expression parser should work like value parser in json
