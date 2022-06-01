@@ -1,10 +1,20 @@
 const globalEnv = {
-  '+': (args) => args.reduce((acc, a) => acc + a, 0),
-  '-': (args) => args.reduce((acc, a) => acc - a, 0),
-  '*': (args) => args.reduce((acc, a) => acc * a, 1),
+  '+': (args) => {
+    if (args.length !== 2) return null
+    return args[0] + args[1]
+  },
+  '-': (args) => {
+    if (args.length !== 2) return null
+    return args[0] - args[1]
+  },
+  '*': (args) => {
+    if (args.length !== 2) return null
+    const ans = args[0] * args[1]
+    return ans
+  },
   '/': (args) => {
     if (args.length !== 2) return null
-    return args.reduce((acc, a) => acc / a, args[0])
+    return args[0] / args[1]
   },
   '>': (args) => {
     if (args.length !== 2) return null
@@ -37,15 +47,20 @@ const evaluate = (input) => {
   console.log('in eval')
   input = input.replace(/[(]/g, ' ( ').replace(/[)]/g, ' ) ')
   const output = bracketParser(input, globalEnv) || numberParser(input, globalEnv) || symbolParser(input, globalEnv)
-  console.log(output)
-  if (!output) return 'invalid expression'
+  if (!output) {
+    console.log('return evaluate')
+    return 'invalid expression'
+  }
+  console.log('return evaluate')
   return output[0]
 }
 
 const expressionParser = (input, env = globalEnv) => {
   console.log('in expression')
   input = input.trim()
-  return symbolParser(input, env) || numberParser(input, env) || bracketParser(input, env) || procedureParser(input, env) || specialFormParser(input, env)
+  const output = symbolParser(input, env) || numberParser(input, env) || bracketParser(input, env) || procedureParser(input, env) || specialFormParser(input, env)
+  console.log('return expression')
+  return output
 }
 
 const symbolParser = (input, env) => {
@@ -54,7 +69,10 @@ const symbolParser = (input, env) => {
   const literal = input.match(/[^\s]+/)[0]
   input = input.slice(literal.length)
   const value = env[literal]
-  if (value && typeof value !== 'function') return [value, input]
+  if (value && typeof value !== 'function') {
+    console.log('return symbol')
+    return [value, input]
+  }
   return null
 }
 
@@ -64,22 +82,29 @@ const numberParser = (input, env) => {
   const value = input.match(pattern)
   if (value) {
     input = input.slice(value[0].length)
+    console.log('return num')
     return [parseFloat(value[0]), input]
   }
   return null
 }
 
 const bracketParser = (input, env) => {
-  console.log('in bracket', input)
+  console.log('in bracket')
   input = input.trim()
   if (input[0] !== '(') return null
   input = input.slice(1)
   if (input.trim().startsWith('(')) return null
   const parsed = expressionParser(input, env)
+  if (parsed === null) return null
+  if (!Array.isArray(parsed)) {
+    console.log('return bracket')
+    return [parsed, '']
+  }
   input = parsed[1].trim()
-  if (!parsed[0]) return null
-  if (input[0] === ')') return [parsed[0], input.slice(1)]
-  return null
+  if (input[0] === ')') {
+    console.log('return bracket')
+    return [parsed[0], input.slice(1)]
+  }
 }
 
 const procedureParser = (input, env) => {
@@ -91,47 +116,62 @@ const procedureParser = (input, env) => {
   if (typeof procedure === 'function') {
     const args = getArguments(input, env)
     const procedureOp = procedure(args[0])
-    if (Array.isArray(args) && procedureOp) return [procedureOp, args[1]]
+    if (Array.isArray(args) && procedureOp !== null) {
+      console.log('return procedure')
+      return [procedureOp, args[1]]
+    }
   }
   return null
 }
 
 const getArguments = (input, env) => {
-  console.log(' in getarg', input)
+  console.log(' in getarg')
   input = input.trim()
-  let parsed = expressionParser(input)
-  if (!parsed[0]) return null
-  const args = []
-  args.push(parsed[0])
-  console.log(args)
-  while (!parsed[1].trim().startsWith(')')) {
-    console.log(parsed[1])
-    parsed = expressionParser(parsed[1])
-    args.push(parsed[0])
+  let parsed = expressionParser(input, env)
+  let arg = parsed[0]
+  while (Array.isArray(arg)) {
+    arg = arg[0]
+    if (!arg) return null
   }
+  const args = []
+  args.push(arg)
+  while (!parsed[1].trim().startsWith(')')) {
+    parsed = expressionParser(parsed[1], env)
+    let arg = parsed[0]
+    while (Array.isArray(arg)) {
+      arg = arg[0]
+      if (!arg) return null
+    }
+    args.push(arg)
+  }
+  console.log('return getarg', args)
   return [args, parsed[1]]
 }
 const specialFormParser = (input, env) => {
   console.log('in specialform')
   for (const prop in specialForms) {
-    const parsed = specialForms[prop](input)
-    if (parsed) return parsed
+    const parsed = specialForms[prop](input, env)
+    if (parsed) {
+      console.log('return specialform')
+      return parsed
+    }
   }
   return null
 }
 
 const defineParser = (input, env) => {
-  console.log('in define', input)
+  console.log('in define')
   input = input.trim()
   const literal = input.match(/[^\s]+/)[0]
   if (literal !== 'define') return null
-  input = input.slice(literal.length)
+  input = input.slice(literal.length).trim()
   const symbol = input.match(/[^\s]+/)[0]
   input = input.slice(symbol.length)
   const parsed = expressionParser(input)
   if (!parsed) return null
   env[symbol] = parsed[0]
-  return [symbol, parsed[1]]
+  console.log('return define')
+  return Array.isArray(parsed) ? [symbol, parsed[1]] : symbol
 }
 
 const lambdaParser = (input, env) => {
@@ -142,7 +182,17 @@ const lambdaParser = (input, env) => {
   input = input.slice(literal.length)
   input = input.trim().slice(1).trim()
   let parameters = input.match(/[^)]/)[0]
-  input = input.slice(parameters.length).trim().slice(1)
+  input = input.slice(parameters.length).trim().slice(1).trim()
+  let bracketCount = 0
+  let position = 0
+  for (let i = 0; i < input.length; i++) {
+    if (input[i] === '(') bracketCount++
+    if (input[i] === ')') bracketCount--
+    if (bracketCount < 0) {
+      position = i
+      break
+    }
+  }
   parameters = parameters.trim().split(/\s+/)
   const func = function (localArgs) {
     const localEnv = Object.create(env)
@@ -153,7 +203,9 @@ const lambdaParser = (input, env) => {
     input = parsed[1]
     return parsed
   }
-  return [func, input]
+  const rest = input.slice(position)
+  console.log('return lambda')
+  return [func, rest]
 }
 
 const ifParser = (input, env) => {
@@ -166,19 +218,93 @@ const ifParser = (input, env) => {
   const test = parsed1[0]
   const parsed2 = expressionParser(parsed1[1], env)
   const conseq = parsed2[0]
+  let bracketCount = 0
+  let position = 0
+  input = parsed2[1]
+  for (let i = 0; i < input.length; i++) {
+    if (input[i] === '(') bracketCount++
+    if (input[i] === ')') bracketCount--
+    if (bracketCount < 0) {
+      position = i
+      break
+    }
+  }
+  input = input.slice(position)
+  if (test) return [conseq, input]
   const parsed3 = expressionParser(parsed2[1], env)
   const alt = parsed3[0]
   const rest = parsed3[1]
-  return test ? [conseq, rest] : [alt, rest]
+  console.log('return if')
+  return [alt, rest]
 }
 
+const setParser = (input, env) => {
+  console.log('in set')
+  input = input.trim()
+  const literal = input.match(/[^\s]+/)[0]
+  if (literal !== 'set!') return null
+  input = input.slice(literal.length).trim()
+  const symbol = input.match(/[^\s]+/)[0]
+  input = input.slice(symbol.length)
+  if (env[symbol] && typeof env[symbol] !== 'function') {
+    const value = expressionParser(input, env)
+    env[symbol] = value
+    console.log('return set')
+    return [symbol, input]
+  }
+  return null
+}
+
+const quoteParser = (input, env) => {
+  console.log('in quote')
+  input = input.trim()
+  const literal = input.match(/[^\s]+/)[0]
+  if (literal !== 'quote') return null
+  input = input.slice(literal.length).trim()
+  if (input[0] !== '(') {
+    const string = input.match(/[^\s]+/)[0]
+    input = input.slice(string.length)
+    console.log('return quote')
+    return [string, input]
+  }
+  input = input.slice(1)
+  const string = input.match(/[^)]+/)[0]
+  input = input.slice(string.length)
+  console.log('return quote')
+  return [string, input.slice(1)]
+}
+
+const beginParser = (input, env) => {
+  console.log('in begin')
+  input = input.trim()
+  const literal = input.match(/[^\s]+/)[0]
+  if (literal !== 'begin') return null
+  input = input.slice(literal.length).trim()
+  let value
+  let parsed = expressionParser(input, env)
+  while (input !== ')') {
+    parsed = expressionParser(parsed[1], env)
+    value = parsed[0]
+    input = parsed[1].trim()
+  }
+  console.log('return begin')
+  return [value, input]
+}
 const specialForms = {
   define: defineParser,
   lambda: lambdaParser,
-  if: ifParser
-  // ,
-  // // set: setParser,
-  // // quote: quoteParser,
-  // // begin: beginParser
+  if: ifParser,
+  set: setParser,
+  quote: quoteParser,
+  begin: beginParser
 }
-console.log(evaluate('(define r 10)'))
+// console.log(evaluate('(define func (lambda (x) (if (= x 1) 1 0)))'))
+// console.log(evaluate('(func 1)'))
+// console.log(evaluate('(define r 1)'))
+// console.log(evaluate('(set! r 2)'))
+// console.log(evaluate('(r)'))
+// console.log(evaluate('(define r quote (nfkjefkejdk))'))
+// console.log(evaluate('(begin (define r 10) (* pi (* r r)))'))
+// console.log(evaluate('(define circle-area (lambda (r) (* pi (* r r)))'))
+// console.log(evaluate('(define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))'))
+// console.log(evaluate('(circle-area (fact 10))'))
