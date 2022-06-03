@@ -1,3 +1,28 @@
+const process = require('process')
+const readline = require('readline')
+const interpret = (input) => evaluate(input)
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+})
+rl.on('close', function () {
+  process.exit(0)
+})
+repl()
+function repl () {
+  rl.question('\n=>', function (input) {
+    if (input === ':q' || input === ':quit') {
+      rl.close()
+    }
+    try {
+      console.log(interpret(input))
+    } catch (err) {
+      console.log(err)
+    } finally {
+      repl()
+    }
+  })
+}
 const globalEnv = {
   '+': (args) => {
     if (args.length !== 2) return null
@@ -51,30 +76,35 @@ const globalEnv = {
 }
 
 const evaluate = (input) => {
-  console.log('in eval')
+  // console.log('in eval')
   input = input.replace(/[(]/g, ' ( ').replace(/[)]/g, ' ) ')
 
-  const output = bracketParser(input, globalEnv) || numberParser(input, globalEnv) || symbolParser(input, globalEnv)
+  let output = bracketParser(input, globalEnv) || numberParser(input, globalEnv) || symbolParser(input, globalEnv)
 
   if (!output) {
-    console.log('return evaluate')
+    // console.log('return evaluate')
     return 'invalid expression'
   }
-  console.log('return evaluate')
+  while (Array.isArray(output) && typeof output[output.length - 1] === 'string' && output.length > 1) {
+    output = output.slice(0, output.length - 1)
+    if (output.length === 1 && Array.isArray(output[0])) output = output[0]
+  }
+  // potential threats with block for slicing the array
+  // console.log('return evaluate')
   return output[0]
 }
 
 const expressionParser = (input, env = globalEnv) => {
-  console.log('in expression')
+  // console.log('in expression')
   input = input.trim()
 
   const output = symbolParser(input, env) || numberParser(input, env) || bracketParser(input, env) || procedureParser(input, env) || specialFormParser(input, env)
-  console.log('return expression')
+  // console.log('return expression')
   return output
 }
 
 const symbolParser = (input, env) => {
-  console.log('in symbol')
+  // console.log('in symbol')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -83,7 +113,7 @@ const symbolParser = (input, env) => {
   const value = env[literal]
 
   if (value !== undefined && typeof value !== 'function') {
-    console.log('return symbol')
+    // console.log('return symbol')
 
     return [value, input]
   }
@@ -92,14 +122,14 @@ const symbolParser = (input, env) => {
 }
 
 const numberParser = (input, env) => {
-  console.log('in num')
+  // console.log('in num')
 
   const pattern = /^(-)?(0|[1-9]\d*)(\.\d+)?((e|E)(\+|-)?\d+)*/
   const value = input.match(pattern)
 
   if (value) {
     input = input.slice(value[0].length)
-    console.log('return num')
+    // console.log('return num')
 
     return [parseFloat(value[0]), input]
   }
@@ -108,7 +138,7 @@ const numberParser = (input, env) => {
 }
 
 const bracketParser = (input, env) => {
-  console.log('in bracket')
+  // console.log('in bracket')
   input = input.trim()
 
   if (input[0] !== '(') return null
@@ -120,21 +150,21 @@ const bracketParser = (input, env) => {
   if (parsed === null) return null
 
   if (!Array.isArray(parsed)) {
-    console.log('return bracket')
+    // console.log('return bracket')
 
     return [parsed, '']
   }
   input = parsed[1].trim()
 
   if (input[0] === ')') {
-    console.log('return bracket')
+    // console.log('return bracket')
 
     return [parsed[0], input.slice(1)]
   }
 }
 
 const procedureParser = (input, env) => {
-  console.log('in procedure')
+  // console.log('in procedure')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -147,7 +177,7 @@ const procedureParser = (input, env) => {
     const procedureOp = procedure(args[0])
 
     if (Array.isArray(args) && procedureOp !== null) {
-      console.log('return procedure')
+      // console.log('return procedure')
 
       return [procedureOp, args[1]]
     }
@@ -157,7 +187,7 @@ const procedureParser = (input, env) => {
 }
 
 const getArguments = (input, env) => {
-  console.log(' in getarg')
+  // console.log(' in getarg')
   input = input.trim()
 
   let parsed = expressionParser(input, env)
@@ -171,7 +201,7 @@ const getArguments = (input, env) => {
   args.push(arg)
 
   input = parsed[1].trim()
-  console.log('onebyone', args)
+  // console.log('onebyone', args)
 
   while (!parsed[1].trim().startsWith(')')) {
     parsed = expressionParser(parsed[1], env)
@@ -183,20 +213,20 @@ const getArguments = (input, env) => {
     }
     args.push(arg)
   }
-  console.log('onebyone', args)
+  // console.log('onebyone', args)
   input = parsed[1].trim()
 
-  console.log('return getarg')
+  // console.log('return getarg')
   return [args, input]
 }
 const specialFormParser = (input, env) => {
-  console.log('in specialform')
+  // console.log('in specialform')
 
   for (const prop in specialForms) {
     const parsed = specialForms[prop](input, env)
 
     if (parsed) {
-      console.log('return specialform')
+      // console.log('return specialform')
       return parsed
     }
   }
@@ -205,7 +235,7 @@ const specialFormParser = (input, env) => {
 }
 
 const defineParser = (input, env) => {
-  console.log('in define')
+  // console.log('in define')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -221,13 +251,13 @@ const defineParser = (input, env) => {
   if (!parsed) return null
 
   env[symbol] = parsed[0]
-  console.log('return define')
+  // console.log('return define')
 
   return Array.isArray(parsed) ? [symbol, parsed[1]] : symbol
 }
 
 const lambdaParser = (input, env) => {
-  console.log('in lambda')
+  // console.log('in lambda')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -263,19 +293,17 @@ const lambdaParser = (input, env) => {
     })
 
     const parsed = expressionParser(input, localEnv)
-    console.log('parsed', input)
-    input = parsed[1]
 
     return parsed
   }
+  // console.log('return lambda', input)
   const rest = input.slice(position)
 
-  console.log('return lambda')
   return [func, rest]
 }
 
 const ifParser = (input, env) => {
-  console.log('in if')
+  // console.log('in if')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -309,12 +337,12 @@ const ifParser = (input, env) => {
   const alt = parsed3[0]
   const rest = parsed3[1]
 
-  console.log('return if')
+  // console.log('return if')
   return [alt, rest]
 }
 
 const setParser = (input, env) => {
-  console.log('in set')
+  // console.log('in set')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -328,7 +356,7 @@ const setParser = (input, env) => {
     const value = expressionParser(input, env)
     env[symbol] = value
 
-    console.log('return set')
+    // console.log('return set')
     return [symbol, input]
   }
 
@@ -336,7 +364,7 @@ const setParser = (input, env) => {
 }
 
 const quoteParser = (input, env) => {
-  console.log('in quote')
+  // console.log('in quote')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -348,7 +376,7 @@ const quoteParser = (input, env) => {
     const string = input.match(/[^\s]+/)[0]
     input = input.slice(string.length)
 
-    console.log('return quote')
+    // console.log('return quote')
     return [string, input]
   }
   input = input.slice(1)
@@ -356,12 +384,12 @@ const quoteParser = (input, env) => {
   const string = input.match(/[^)]+/)[0]
   input = input.slice(string.length)
 
-  console.log('return quote')
+  // console.log('return quote')
   return [string, input.slice(1)]
 }
 
 const beginParser = (input, env) => {
-  console.log('in begin')
+  // console.log('in begin')
   input = input.trim()
 
   const literal = input.match(/[^\s]+/)[0]
@@ -377,7 +405,7 @@ const beginParser = (input, env) => {
     input = parsed[1].trim()
   }
 
-  console.log('return begin')
+  // console.log('return begin')
   return [value, input]
 }
 const specialForms = {
@@ -389,18 +417,18 @@ const specialForms = {
   begin: beginParser
 }
 
-// console.log(evaluate('(define func (lambda (x) (if (= x 1) 1 0)))'))
-// console.log(evaluate('(func 1)'))
-// console.log(evaluate('(define r 1)'))
-// console.log(evaluate('(set! r 2)'))
-// console.log(evaluate('(r)'))
-// console.log(evaluate('(define r quote (nfkjefkejdk))'))
-// console.log(evaluate('(begin (define r 10) (* pi (* r r)))'))
-// console.log(evaluate('(define circle-area (lambda (r) (* pi (* r r)))'))
-// console.log(evaluate('(define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))'))
-// console.log(evaluate('(circle-area (fact 10))'))
-console.log(evaluate('(define fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2))))))'))
-console.log(evaluate('(define range (lambda (a b) (if (= a b) (quote ()) (cons a (range (+ a 1) b)))))'))
-console.log(evaluate('(range 0 4)'))
-console.log(evaluate('(define fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2))))))'))
-console.log(evaluate('(fib 10)'))
+// // console.log(evaluate('(define func (lambda (x) (if (= x 1) 1 0)))'))
+// // console.log(evaluate('(func 1)'))
+// // console.log(evaluate('(define r 1)'))
+// // console.log(evaluate('(set! r 2)'))
+// // console.log(evaluate('(r)'))
+// // console.log(evaluate('(define r quote (nfkjefkejdk))'))
+// // console.log(evaluate('(begin (define r 10) (* pi (* r r)))'))
+// // console.log(evaluate('(define circle-area (lambda (r) (* pi (* r r)))'))
+// // console.log(evaluate('(define fact (lambda (n) (if (<= n 1) 1 (* n (fact (- n 1))))))'))
+// // console.log(evaluate('(circle-area (fact 10))'))
+
+// console.log(evaluate('(define fib (lambda (n) (if (< n 2) 1 (+ (fib (- n 1)) (fib (- n 2))))))'))
+// // console.log(evaluate('(define range (lambda (a b) (if (= a b) (quote ()) (cons a (range (+ a 1) b)))))'))
+// // console.log(evaluate('(range 0 4)'))
+// console.log(evaluate('(fib 10)'))
